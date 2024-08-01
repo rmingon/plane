@@ -1,7 +1,7 @@
 # PLANE  with 3D models and specific hardware control system 
 
 * SG90 servo
-* LD-POWER motor
+* LD-POWER motor 4300KV
 * ESC 8A 
 
 ### Thingiverse
