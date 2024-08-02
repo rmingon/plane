@@ -13486,7 +13486,7 @@
 				)
 			)
 		)
-		(property "Value" "AMS1117-3.3"
+		(property "Value" "AMS1117-5"
 			(at 137.16 129.54 0)
 			(effects
 				(font
