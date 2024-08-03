@@ -13,7 +13,7 @@
 ## Hardware
 
 * ESP32 wifi + bluetooth controller
-* LORA 868mhz Long range communication
+* LORA 868mhz Long range communication with SMA connector
 * 4 channels servos control
 * XT30 battery connector
 * MPU6050 giro and accel mcu
