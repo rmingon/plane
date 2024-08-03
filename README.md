@@ -18,6 +18,7 @@
 * XT30 battery connector
 * MPU6050 giro and accel mcu
 * BMP280 altimeter
+* ESC connector
 
 ### 3d view
 ![hardware 3d](./hardware/3d.png)
