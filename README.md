@@ -3,6 +3,7 @@
 * SG90 servo
 * LD-POWER motor 4300KV
 * ESC 8A 
+* 2-3s battery
 
 ### Thingiverse
 [LINK](https://www.thingiverse.com/thing:6716661)
