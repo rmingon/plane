@@ -13,7 +13,10 @@ MPU6050 mpu(Wire);
 long timer = 0;
 
 #include <ESP32Servo.h>
-Servo myservo;
+Servo left;
+Servo right;
+Servo backLeft;
+Servo backRight;
 
 void onReceive(int packetSize) {
   // received a packet
@@ -30,54 +33,71 @@ void onReceive(int packetSize) {
 }
 
 void setup(){
-    Wire.begin();    
-    Serial.begin(115200);
+  Wire.begin();    
+  Serial.begin(115200);
+  delay(10000);
 
-    ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(0);
 	ESP32PWM::allocateTimer(1);
 	ESP32PWM::allocateTimer(2);
 	ESP32PWM::allocateTimer(3);
-    myservo.setPeriodHertz(50);
-    myservo.attach(32, 1000, 2000);
+  left.setPeriodHertz(50);
+  left.attach(26, 1000, 2000);
+  right.setPeriodHertz(50);
+  right.attach(25, 1000, 2000);
+  backLeft.setPeriodHertz(50);
+  backLeft.attach(32, 1000, 2000);
+  backRight.setPeriodHertz(50);
+  backRight.attach(27, 1000, 2000);
 
-    myservo.write(0);
-    delay(1000);
-    myservo.write(180);
+  left.write(0);
+  right.write(0);
+  backLeft.write(0);
+  backRight.write(0);
 
-    LoRaSPI.begin(14, 12, 13);
-    LoRa.setSPI(LoRaSPI);
-    LoRa.setPins(15, 16, 17);
-    if (!LoRa.begin(868E6)) {
-        Serial.println("LoRa init failed. Check your connections.");
-        while (true);                       // if failed, do nothing
-    }
-    if (!bmp.begin()) {
-        Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
-                        "try a different address!"));
-        while (1) delay(10);
-    }
-    bmp.setSampling(Adafruit_BMP280::MODE_FORCED,     /* Operating Mode. */
-                Adafruit_BMP280::SAMPLING_X2,     /* Temp. oversampling */
-                Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
-                Adafruit_BMP280::FILTER_X16,      /* Filtering. */
-                Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
+  delay(3000);
 
-    byte status = mpu.begin();
-    Serial.print(F("MPU6050 status: "));
-    Serial.println(status);
-    while(status!=0){ } // stop everything if could not connect to MPU6050
-    
-    Serial.println(F("Calculating offsets, do not move MPU6050"));
-    delay(1000);
-    mpu.calcOffsets(true,true); // gyro and accelero
+  left.write(90);
+  right.write(90);
+  backLeft.write(90);
+  backRight.write(90);
 
-    LoRa.onReceive(onReceive);
-    LoRa.receive();
+  delay(30000);
+
+  LoRaSPI.begin(14, 12, 13);
+  LoRa.setSPI(LoRaSPI);
+  LoRa.setPins(15, 16, 17);
+  if (!LoRa.begin(868E6)) {
+      Serial.println("LoRa init failed. Check your connections.");
+      while (true);                       // if failed, do nothing
+  }
+  if (!bmp.begin()) {
+      Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
+                      "try a different address!"));
+      while (1) delay(10);
+  }
+  bmp.setSampling(Adafruit_BMP280::MODE_FORCED,     /* Operating Mode. */
+              Adafruit_BMP280::SAMPLING_X2,     /* Temp. oversampling */
+              Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
+              Adafruit_BMP280::FILTER_X16,      /* Filtering. */
+              Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
+
+  byte status = mpu.begin();
+  Serial.print(F("MPU6050 status: "));
+  Serial.println(status);
+  while(status!=0){ } // stop everything if could not connect to MPU6050
+  
+  Serial.println(F("Calculating offsets, do not move MPU6050"));
+  delay(1000);
+  mpu.calcOffsets(true,true); // gyro and accelero
+
+  LoRa.onReceive(onReceive);
+  LoRa.receive();
 } 
  
 void loop(){
 
-    mpu.update();
+  mpu.update();
 
   if(millis() - timer > 1000){ // print data every second
     Serial.print(F("TEMPERATURE: "));Serial.println(mpu.getTemp());
