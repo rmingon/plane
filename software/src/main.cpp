@@ -35,7 +35,6 @@ void onReceive(int packetSize) {
 void setup(){
   Wire.begin();    
   Serial.begin(115200);
-  delay(10000);
 
   ESP32PWM::allocateTimer(0);
 	ESP32PWM::allocateTimer(1);
@@ -49,13 +48,6 @@ void setup(){
   backLeft.attach(32, 1000, 2000);
   backRight.setPeriodHertz(50);
   backRight.attach(27, 1000, 2000);
-
-  left.write(0);
-  right.write(0);
-  backLeft.write(0);
-  backRight.write(0);
-
-  delay(3000);
 
   left.write(90);
   right.write(90);
@@ -99,7 +91,7 @@ void loop(){
 
   mpu.update();
 
-  if(millis() - timer > 1000){ // print data every second
+  if(millis() - timer > 1000) { // print data every second
     Serial.print(F("TEMPERATURE: "));Serial.println(mpu.getTemp());
     Serial.print(F("ACCELERO  X: "));Serial.print(mpu.getAccX());
     Serial.print("\tY: ");Serial.print(mpu.getAccY());
