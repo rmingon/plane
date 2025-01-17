@@ -41,9 +41,9 @@ void setup(){
 	ESP32PWM::allocateTimer(2);
 	ESP32PWM::allocateTimer(3);
   left.setPeriodHertz(50);
-  left.attach(26, 1000, 2000);
+  left.attach(25, 1000, 2000);
   right.setPeriodHertz(50);
-  right.attach(25, 1000, 2000);
+  right.attach(26, 1000, 2000);
   backLeft.setPeriodHertz(50);
   backLeft.attach(32, 1000, 2000);
   backRight.setPeriodHertz(50);
@@ -51,10 +51,19 @@ void setup(){
 
   left.write(90);
   right.write(90);
-  backLeft.write(90);
+  backLeft.write(50);
   backRight.write(90);
 
-  delay(30000);
+  delay(3000);
+
+  left.write(110);
+  right.write(70);
+
+  delay(3000);
+
+  left.write(90);
+  right.write(150);
+
 
   LoRaSPI.begin(14, 12, 13);
   LoRa.setSPI(LoRaSPI);
