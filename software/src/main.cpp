@@ -32,6 +32,10 @@ void onReceive(int packetSize) {
   Serial.println(LoRa.packetRssi());
 }
 
+void roll(unsigned int);
+
+void yaw(unsigned int);
+
 void setup(){
   Wire.begin();    
   Serial.begin(115200);
@@ -51,20 +55,23 @@ void setup(){
 
   left.write(90);
   right.write(90);
-  backLeft.write(50);
+  backLeft.write(90);
   backRight.write(90);
 
-  delay(3000);
+  for(unsigned int i = 0; i < 60; i++) {
+    yaw(i);
+    roll(i);
+    delay(50);
+  }
+  for(unsigned int i = 0; i < 60; i++) {
+    yaw(-i);
+    roll(-i);
+    delay(50);
+  }
 
-  left.write(110);
-  right.write(70);
-
-  delay(3000);
-
-  left.write(90);
-  right.write(150);
-
-
+  yaw(0);
+  roll(0);
+  
   LoRaSPI.begin(14, 12, 13);
   LoRa.setSPI(LoRaSPI);
   LoRa.setPins(15, 16, 17);
@@ -94,13 +101,22 @@ void setup(){
 
   LoRa.onReceive(onReceive);
   LoRa.receive();
-} 
+}
+
+void roll(unsigned int roll) {
+  left.write(106 - roll);
+  right.write(85 - roll);
+}
+
+void yaw(unsigned int yaw) {
+  backRight.write(100 - yaw);
+}
  
 void loop(){
 
   mpu.update();
 
-  if(millis() - timer > 1000) { // print data every second
+  if(millis() - timer > 50) { // print data every second
     Serial.print(F("TEMPERATURE: "));Serial.println(mpu.getTemp());
     Serial.print(F("ACCELERO  X: "));Serial.print(mpu.getAccX());
     Serial.print("\tY: ");Serial.print(mpu.getAccY());
@@ -111,32 +127,35 @@ void loop(){
     Serial.print("\tZ: ");Serial.println(mpu.getGyroZ());
   
     Serial.print(F("ACC ANGLE X: "));Serial.print(mpu.getAccAngleX());
-    Serial.print("\tY: ");Serial.println(mpu.getAccAngleY());
-    
+    Serial.print("\tY: ");Serial.print(mpu.getAccAngleY());
+    roll(int(trunc(mpu.getAccAngleY()*2)));
+    Serial.print("\troll: ");Serial.println(int(trunc(mpu.getAccAngleY()*2)));
+
     Serial.print(F("ANGLE     X: "));Serial.print(mpu.getAngleX());
     Serial.print("\tY: ");Serial.print(mpu.getAngleY());
     Serial.print("\tZ: ");Serial.println(mpu.getAngleZ());
     Serial.println(F("=====================================================\n"));
     timer = millis();
+
+    if (bmp.takeForcedMeasurement()) {
+      // can now print out the new measurements
+      Serial.print(F("Temperature = "));
+      Serial.print(bmp.readTemperature());
+      Serial.println(" *C");
+
+      Serial.print(F("Pressure = "));
+      Serial.print(bmp.readPressure());
+      Serial.println(" Pa");
+
+      Serial.print(F("Approx altitude = "));
+      Serial.print(bmp.readAltitude(1013.25)); /* Adjusted to local forecast! */
+      Serial.println(" m");
+
+      Serial.println();
+    } else {
+      Serial.println("Forced measurement failed!");
+    }
   }
 
-  if (bmp.takeForcedMeasurement()) {
-    // can now print out the new measurements
-    Serial.print(F("Temperature = "));
-    Serial.print(bmp.readTemperature());
-    Serial.println(" *C");
 
-    Serial.print(F("Pressure = "));
-    Serial.print(bmp.readPressure());
-    Serial.println(" Pa");
-
-    Serial.print(F("Approx altitude = "));
-    Serial.print(bmp.readAltitude(1013.25)); /* Adjusted to local forecast! */
-    Serial.println(" m");
-
-    Serial.println();
-    delay(2000);
-  } else {
-    Serial.println("Forced measurement failed!");
-  }
 }
