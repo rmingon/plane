@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include "Wire.h"
 
-#include <SPI.h>              // include libraries
+#include <SPI.h>
 #include <LoRa.h>
 SPIClass LoRaSPI;
 
@@ -17,6 +17,19 @@ Servo left;
 Servo right;
 Servo backLeft;
 Servo backRight;
+
+#include <WiFi.h>
+#include <WiFiUdp.h>
+WiFiUDP udp;
+char packetBuffer[255];
+unsigned int localPort = 9999;
+
+const char* ssid     = "plane";
+const char* password = "0987654321";
+
+IPAddress local_ip(192,168,0,1);
+IPAddress gateway(192,168,0,1);
+IPAddress subnet(255,255,255,0);
 
 void onReceive(int packetSize) {
   // received a packet
@@ -99,6 +112,14 @@ void setup(){
   delay(1000);
   mpu.calcOffsets(true,true); // gyro and accelero
 
+  WiFi.mode(WIFI_AP);
+  WiFi.softAPConfig(local_ip, gateway, subnet);
+  WiFi.softAP(ssid, password);
+  Serial.print("[+] AP Created with IP Gateway ");
+  Serial.println(WiFi.softAPIP());
+
+  udp.begin(localPort);
+
   LoRa.onReceive(onReceive);
   LoRa.receive();
 }
@@ -113,6 +134,22 @@ void yaw(unsigned int yaw) {
 }
  
 void loop(){
+
+  int packetSize = udp.parsePacket();
+  Serial.print(" Received packet from : "); Serial.println(udp.remoteIP());
+  Serial.print(" Size : "); Serial.println(packetSize);
+  if (packetSize) {
+    int len = udp.read(packetBuffer, 255);
+    if (len > 0) packetBuffer[len - 1] = 0;
+    Serial.printf("Data : %s\n", packetBuffer);
+    udp.beginPacket(udp.remoteIP(), udp.remotePort());
+    udp.printf("UDP packet was received OK\r\n");
+    udp.endPacket();
+  }
+  Serial.println("\n");
+  delay(500);
+  Serial.print("[Server Connected] ");
+  Serial.println (WiFi.localIP());
 
   mpu.update();
 
