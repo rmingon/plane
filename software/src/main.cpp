@@ -147,16 +147,16 @@ void handleUDP() {
     StaticJsonDocument<256> doc;
     DeserializationError error = deserializeJson(doc, packetBuffer);
     if (!error) {
-      // For each possible field, update if present
-      if (doc.containsKey("joyX"))   joyX   = doc["joyX"].as<int>();
-      if (doc.containsKey("joyY"))   joyY   = doc["joyY"].as<int>();
-      if (doc.containsKey("rollAngle"))   rollAngle   = doc["rollAngle"].as<int>();
-      if (doc.containsKey("pitchAngle"))   pitchAngle   = doc["pitchAngle"].as<int>();
-      if (doc.containsKey("accX"))   accX   = doc["accX"].as<int>();
-      if (doc.containsKey("accY"))   accY   = doc["accY"].as<int>();
-      if (doc.containsKey("accZ"))   accY   = doc["accZ"].as<int>();
-      if (doc.containsKey("buttonC"))   buttonC   = doc["buttonC"].as<bool>();
-      if (doc.containsKey("buttonZ"))   buttonZ   = doc["buttonZ"].as<bool>();
+      JsonObject data = doc["data"];
+        if (data.containsKey("joyX"))   joyX   = data["joyX"].as<int>();
+        if (data.containsKey("joyY"))   joyY   = data["joyY"].as<int>();
+        if (data.containsKey("rollAngle"))   rollAngle   = data["rollAngle"].as<int>();
+        if (data.containsKey("pitchAngle"))   pitchAngle   = data["pitchAngle"].as<int>();
+        if (data.containsKey("accX"))   accX   = data["accX"].as<int>();
+        if (data.containsKey("accY"))   accY   = data["accY"].as<int>();
+        if (data.containsKey("accZ"))   accY   = data["accZ"].as<int>();
+        if (data.containsKey("buttonC"))   buttonC   = data["buttonC"].as<bool>();
+        if (data.containsKey("buttonZ"))   buttonZ   = data["buttonZ"].as<bool>();
     } else {
       Serial.println("[UDP] JSON parse failed.");
     }
