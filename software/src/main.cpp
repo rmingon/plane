@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "Wire.h"
+#include <ArduinoJson.h>
 
 #include <SPI.h>
 #include <LoRa.h>
@@ -44,6 +45,9 @@ void onReceive(int packetSize) {
   Serial.print("' with RSSI ");
   Serial.println(LoRa.packetRssi());
 }
+
+bool buttonC, buttonZ = false;
+int joyX, joyY, rollAngle, pitchAngle, accX, accY, accZ = 0;
 
 void roll(unsigned int);
 
@@ -132,24 +136,35 @@ void roll(unsigned int roll) {
 void yaw(unsigned int yaw) {
   backRight.write(100 - yaw);
 }
+
+void handleUDP() {
+  int packetSize = udp.parsePacket();
+  if (packetSize) {
+    int len = udp.read(packetBuffer, sizeof(packetBuffer) - 1);
+    if (len > 0) {
+      packetBuffer[len] = 0; // Null-terminate
+    }
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, packetBuffer);
+    if (!error) {
+      // For each possible field, update if present
+      if (doc.containsKey("joyX"))   joyX   = doc["joyX"].as<int>();
+      if (doc.containsKey("joyY"))   joyY   = doc["joyY"].as<int>();
+      if (doc.containsKey("rollAngle"))   rollAngle   = doc["rollAngle"].as<int>();
+      if (doc.containsKey("pitchAngle"))   pitchAngle   = doc["pitchAngle"].as<int>();
+      if (doc.containsKey("accX"))   accX   = doc["accX"].as<int>();
+      if (doc.containsKey("accY"))   accY   = doc["accY"].as<int>();
+      if (doc.containsKey("accZ"))   accY   = doc["accZ"].as<int>();
+      if (doc.containsKey("buttonC"))   buttonC   = doc["buttonC"].as<bool>();
+      if (doc.containsKey("buttonZ"))   buttonZ   = doc["buttonZ"].as<bool>();
+    } else {
+      Serial.println("[UDP] JSON parse failed.");
+    }
+  }
+}
  
 void loop(){
-
-  int packetSize = udp.parsePacket();
-  Serial.print(" Received packet from : "); Serial.println(udp.remoteIP());
-  Serial.print(" Size : "); Serial.println(packetSize);
-  if (packetSize) {
-    int len = udp.read(packetBuffer, 255);
-    if (len > 0) packetBuffer[len - 1] = 0;
-    Serial.printf("Data : %s\n", packetBuffer);
-    udp.beginPacket(udp.remoteIP(), udp.remotePort());
-    udp.printf("UDP packet was received OK\r\n");
-    udp.endPacket();
-  }
-  Serial.println("\n");
-  delay(500);
-  Serial.print("[Server Connected] ");
-  Serial.println (WiFi.localIP());
+  handleUDP();
 
   mpu.update();
 
