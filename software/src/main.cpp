@@ -9,6 +9,10 @@ SPIClass LoRaSPI;
 #include <Adafruit_BMP280.h>
 Adafruit_BMP280 bmp;
 
+const int PWM_FREQ    = 50;
+const int PWM_RES_BITS = 16;
+int oESC = 100;
+
 #include <MPU6050_light.h>
 MPU6050 mpu(Wire);
 long timer = 0;
@@ -56,6 +60,11 @@ void yaw(unsigned int);
 void setup(){
   Wire.begin();    
   Serial.begin(115200);
+
+
+  ledcSetup(5, PWM_FREQ, 8);
+  ledcAttachPin(33, 5);
+  ledcWrite(5, 10);
 
   ESP32PWM::allocateTimer(0);
 	ESP32PWM::allocateTimer(1);
@@ -157,6 +166,17 @@ void handleUDP() {
         if (data.containsKey("accZ"))   accY   = data["accZ"].as<int>();
         if (data.containsKey("buttonC"))   buttonC   = data["buttonC"].as<bool>();
         if (data.containsKey("buttonZ"))   buttonZ   = data["buttonZ"].as<bool>();
+        roll(joyX);
+        if (buttonC) {
+          if (oESC < 255) {
+            oESC += 5;
+          }
+          ledcWrite(5, oESC);
+        }        
+        if (buttonZ) {
+          oESC -= 5;
+          ledcWrite(5, oESC);
+        }
     } else {
       Serial.println("[UDP] JSON parse failed.");
     }
@@ -180,7 +200,7 @@ void loop(){
   
     Serial.print(F("ACC ANGLE X: "));Serial.print(mpu.getAccAngleX());
     Serial.print("\tY: ");Serial.print(mpu.getAccAngleY());
-    roll(int(trunc(mpu.getAccAngleY()*2)));
+    // roll(int(trunc(mpu.getAccAngleY()*2)));
     Serial.print("\troll: ");Serial.println(int(trunc(mpu.getAccAngleY()*2)));
 
     Serial.print(F("ANGLE     X: "));Serial.print(mpu.getAngleX());
@@ -208,6 +228,4 @@ void loop(){
       Serial.println("Forced measurement failed!");
     }
   }
-
-
 }
