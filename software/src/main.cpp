@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include "Wire.h"
 #include <ArduinoJson.h>
+#include <TinyGPSPlus.h>
+TinyGPSPlus gps;
+HardwareSerial gpsSerial(2);
 
 #include <SPI.h>
 #include <LoRa.h>
@@ -22,6 +25,7 @@ Servo left;
 Servo right;
 Servo backLeft;
 Servo backRight;
+Servo esc;
 
 #include <WiFi.h>
 #include <WiFiUdp.h>
@@ -36,13 +40,15 @@ IPAddress local_ip(192,168,0,1);
 IPAddress gateway(192,168,0,1);
 IPAddress subnet(255,255,255,0);
 
+void loraSend(byte*, size_t);
+
 void onReceive(int packetSize) {
   // received a packet
   Serial.print("Received packet '");
 
   // read packet
   for (int i = 0; i < packetSize; i++) {
-    Serial.print((char)LoRa.read());
+    Serial.println(LoRa.read(), BIN);
   }
 
   // print RSSI of packet
@@ -52,24 +58,76 @@ void onReceive(int packetSize) {
 
 bool buttonC, buttonZ = false;
 int joyX, joyY, rollAngle, pitchAngle, accX, accY, accZ = 0;
-
+ 
+void displayInfo();
+void autoPilot();
+void handleUDP();
+void calibEsc();
+void testEsc();
 void roll(unsigned int);
 
 void yaw(unsigned int);
 
+void calibEsc() {
+    Serial.println("Starting ESC calibration...");
+    
+    // Step 1: Send max throttle
+    esc.writeMicroseconds(2000);
+    Serial.println("Sending MAX throttle...");
+    delay(5000);  // Wait for ESC beep sequence
+
+    // Step 2: Send min throttle
+    esc.writeMicroseconds(1000);
+    Serial.println("Sending MIN throttle...");
+    delay(5000);  // Wait for ESC confirmation
+
+    Serial.println("ESC Calibration complete!");
+}
+
+void testEsc () {
+    esc.write(30);  // Slow speed
+    delay(3000);
+    
+    esc.write(60);  // Medium speed
+    delay(3000);
+    
+    esc.write(80);  // High speed
+    delay(3000);
+    
+    esc.write(100);  // High speed
+    delay(3000);
+    
+    esc.write(60);  // High speed
+    delay(3000);
+    
+    esc.write(20);  // High speed
+    delay(3000);
+    
+    esc.write(0);  // Stop
+    delay(3000);
+}
+
 void setup(){
-  Wire.begin();    
+  Wire.begin();
   Serial.begin(115200);
-
-
-  ledcSetup(5, PWM_FREQ, 8);
-  ledcAttachPin(33, 5);
-  ledcWrite(5, 10);
+  gpsSerial.begin(9600, SERIAL_8N1, 4, 5);
 
   ESP32PWM::allocateTimer(0);
 	ESP32PWM::allocateTimer(1);
 	ESP32PWM::allocateTimer(2);
 	ESP32PWM::allocateTimer(3);
+
+  delay(3000);
+
+  esc.setPeriodHertz(50);
+  esc.attach(33, 1000, 2000);
+
+  calibEsc();
+
+  delay(1000);
+
+  testEsc();
+
   left.setPeriodHertz(50);
   left.attach(25, 1000, 2000);
   right.setPeriodHertz(50);
@@ -78,22 +136,11 @@ void setup(){
   backLeft.attach(32, 1000, 2000);
   backRight.setPeriodHertz(50);
   backRight.attach(27, 1000, 2000);
-
+  
   left.write(90);
   right.write(90);
   backLeft.write(90);
   backRight.write(90);
-
-  for(unsigned int i = 0; i < 60; i++) {
-    yaw(i);
-    roll(i);
-    delay(50);
-  }
-  for(unsigned int i = 0; i < 60; i++) {
-    yaw(-i);
-    roll(-i);
-    delay(50);
-  }
 
   yaw(0);
   roll(0);
@@ -105,17 +152,20 @@ void setup(){
       Serial.println("LoRa init failed. Check your connections.");
       while (true);                       // if failed, do nothing
   }
-  if (!bmp.begin()) {
-      Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
-                      "try a different address!"));
-      while (1) delay(10);
-  }
-  bmp.setSampling(Adafruit_BMP280::MODE_FORCED,     /* Operating Mode. */
-              Adafruit_BMP280::SAMPLING_X2,     /* Temp. oversampling */
-              Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
-              Adafruit_BMP280::FILTER_X16,      /* Filtering. */
-              Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
 
+  // if (!bmp.begin()) {
+  //     Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
+  //                     "try a different address!"));
+  //     while (1) delay(10);
+  // }
+  // bmp.setSampling(Adafruit_BMP280::MODE_FORCED,
+  // Adafruit_BMP280::SAMPLING_X2,  
+  // Adafruit_BMP280::SAMPLING_X16,   
+  // Adafruit_BMP280::FILTER_X16,     
+  // Adafruit_BMP280::STANDBY_MS_500); 
+
+  
+  
   byte status = mpu.begin();
   Serial.print(F("MPU6050 status: "));
   Serial.println(status);
@@ -132,6 +182,11 @@ void setup(){
   Serial.println(WiFi.softAPIP());
 
   udp.begin(localPort);
+
+  LoRa.setSpreadingFactor(7);
+  LoRa.setSignalBandwidth(250E3);
+  LoRa.setTxPower(20);
+  LoRa.setSyncWord(0xF3);
 
   LoRa.onReceive(onReceive);
   LoRa.receive();
@@ -168,14 +223,16 @@ void handleUDP() {
         if (data.containsKey("buttonZ"))   buttonZ   = data["buttonZ"].as<bool>();
         roll(joyX);
         if (buttonC) {
-          if (oESC < 255) {
-            oESC += 5;
+          if (oESC < 180) {
+            oESC += 1;
           }
-          ledcWrite(5, oESC);
-        }        
+          esc.write(oESC);
+        }
         if (buttonZ) {
-          oESC -= 5;
-          ledcWrite(5, oESC);
+          if (oESC > 0) {
+            oESC -= 1;
+          }
+          esc.write(oESC);
         }
     } else {
       Serial.println("[UDP] JSON parse failed.");
@@ -184,11 +241,23 @@ void handleUDP() {
 }
  
 void loop(){
-  handleUDP();
+  static const double LONDON_LAT = 51.508131, LONDON_LON = -0.128002;
+  
+  // handleUDP();
+  // This sketch displays information every time a new sentence is correctly encoded.
+  while (gpsSerial.available() > 0)
+    if (gps.encode(gpsSerial.read()))
+      displayInfo();
 
-  mpu.update();
+  if (millis() > 5000 && gps.charsProcessed() < 10)
+  {
+    Serial.println(F("No GPS detected: check wiring."));
+    while(true);
+  }
 
-  if(millis() - timer > 50) { // print data every second
+  if(millis() - timer > 1000) { // print data every second
+  
+    mpu.update();
     Serial.print(F("TEMPERATURE: "));Serial.println(mpu.getTemp());
     Serial.print(F("ACCELERO  X: "));Serial.print(mpu.getAccX());
     Serial.print("\tY: ");Serial.print(mpu.getAccY());
@@ -200,7 +269,6 @@ void loop(){
   
     Serial.print(F("ACC ANGLE X: "));Serial.print(mpu.getAccAngleX());
     Serial.print("\tY: ");Serial.print(mpu.getAccAngleY());
-    // roll(int(trunc(mpu.getAccAngleY()*2)));
     Serial.print("\troll: ");Serial.println(int(trunc(mpu.getAccAngleY()*2)));
 
     Serial.print(F("ANGLE     X: "));Serial.print(mpu.getAngleX());
@@ -209,23 +277,72 @@ void loop(){
     Serial.println(F("=====================================================\n"));
     timer = millis();
 
-    if (bmp.takeForcedMeasurement()) {
-      // can now print out the new measurements
-      Serial.print(F("Temperature = "));
-      Serial.print(bmp.readTemperature());
-      Serial.println(" *C");
+    // if (bmp.takeForcedMeasurement()) {
+    //   Serial.print(F("Temperature = "));
+    //   Serial.print(bmp.readTemperature());
+    //   Serial.println(" *C");
 
-      Serial.print(F("Pressure = "));
-      Serial.print(bmp.readPressure());
-      Serial.println(" Pa");
+    //   Serial.print(F("Pressure = "));
+    //   Serial.print(bmp.readPressure());
+    //   Serial.println(" Pa");
 
-      Serial.print(F("Approx altitude = "));
-      Serial.print(bmp.readAltitude(1013.25)); /* Adjusted to local forecast! */
-      Serial.println(" m");
+    //   Serial.print(F("Approx altitude = "));
+    //   Serial.print(bmp.readAltitude(1013.25));
+    //   Serial.println(" m");
 
-      Serial.println();
-    } else {
-      Serial.println("Forced measurement failed!");
-    }
+    //   Serial.println();
+    // } else {
+    //   Serial.println("Forced measurement failed!");
+    // }
+
   }
+}
+
+void autoPilot() {
+  mpu.update();
+  roll(int(trunc(mpu.getAccAngleY()*2)));
+}
+
+void displayInfo()
+{
+  Serial.print(F("Location: ")); 
+  if (gps.location.isValid())
+  {
+    Serial.print(gps.location.lat(), 6);
+    Serial.print(F(","));
+    Serial.println(gps.location.lng(), 6);
+  }
+  else
+  {
+    Serial.println(F("INVALID"));
+  }
+  Serial.print(F("Speed: ")); 
+  if (gps.speed.isValid())
+  {
+    
+    Serial.println(gps.speed.kmph());
+  }
+  else
+  {
+    Serial.println(F("INVALID"));
+  }
+
+  Serial.print(F("  Course: "));
+  if (gps.date.isValid())
+  {
+    Serial.print(gps.course.deg());
+    Serial.println(TinyGPSPlus::cardinal(gps.course.deg()));
+  }
+  else
+  {
+    Serial.println(F("INVALID"));
+  }
+}
+
+
+void loraSend(byte* data, size_t length) {
+  LoRa.beginPacket();
+  LoRa.write(data, length);
+  LoRa.endPacket();
+  LoRa.receive();
 }
