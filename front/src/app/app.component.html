@@ -1,8 +1,12 @@
 <main class="main">
-  <h1 class="text-3xl font-bold underline">
-    Hello world!
-  </h1>
-  <input [(ngModel)]="url" name='url' type="text" placeholder="insert ip of server"/>
+  <input [(ngModel)]="url" name='url' type="text" placeholder="insert ip of server" />
   <button (click)="addServerUrl()" class="btn btn-primary">Connect</button>
+  <div style="height: 300px;" leaflet [leafletOptions]="options" [leafletLayers]="layers"></div>
+  <canvas class="w-1/2" id="canvas">{{chart}}</canvas>
+  <ul>
+    @for (cmd of cmds; track cmd) {
+      <li>{{ cmd.rssi }}</li>
+    }
+  </ul>
 </main>
 <router-outlet />
