@@ -1,12 +1,49 @@
 <main class="main">
-  <input [(ngModel)]="url" name='url' type="text" placeholder="insert ip of server" />
-  <button (click)="addServerUrl()" class="btn btn-primary">Connect</button>
-  <div style="height: 300px;" leaflet [leafletOptions]="options" [leafletLayers]="layers"></div>
-  <canvas class="w-1/2" id="canvas">{{chart}}</canvas>
-  <ul>
-    @for (cmd of cmds; track cmd) {
-      <li>{{ cmd.rssi }}</li>
-    }
-  </ul>
+
+  <div>
+    <div class="flex items-center justify-center py-3">
+      <input [(ngModel)]="url" name='url' type="text" placeholder="insert ip of server" />
+      <button (click)="addServerUrl()" class="bg-green-100 px-3 py-2 cursor-pointer">Connect</button>
+    </div>
+    <div class="h-72" leaflet [leafletOptions]="options" [leafletLayers]="layers"></div>
+    <div class="h-72 flex items-center justify-center">
+      <div class="w-1/2 items-center">
+        <div class="relative w-64 h-64 rounded-full border-4 border-gray-300 overflow-hidden shadow-lg">
+          <div class="absolute w-full h-full transition-transform duration-300" id="horizon"
+            [style.transform]="`rotate(${roll}deg)`">
+            <div class="h-1/2 bg-sky-500"></div>
+            <!-- Ground -->
+            <div class="h-1/2 bg-yellow-800"></div>
+          </div>
+          <div class="absolute top-1/2 left-0 w-full border-t-2 border-white"></div>
+          <div class="absolute left-1/2 top-0 h-full border-l-2 border-white"></div>
+          <div class="absolute top-1/2 left-1/2 w-2 h-2 bg-white rounded-full -translate-x-1/2 -translate-y-1/2"></div>
+        </div>
+      </div>
+      <div class="relative w-64 h-64 rounded-full border-4 border-gray-300 overflow-hidden shadow-lg bg-gray-800">
+        <!-- Compass markings -->
+        <div class="absolute inset-0 transition-transform duration-300" id="compass-rose"
+        [style.transform]="`rotate(${deg}deg)`">
+          <!-- Directions -->
+          <div class="absolute top-0 left-1/2 transform -translate-x-1/2 text-white text-sm">N</div>
+          <div class="absolute top-10 left-[85%] transform -translate-x-1/2 text-white text-sm">NE</div>
+          <div class="absolute top-1/2 right-0 transform -translate-y-1/2 text-white text-sm">E</div>
+          <div class="absolute bottom-10 right-[85%] transform translate-x-1/2 text-white text-sm">SE</div>
+          <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-white text-sm">S</div>
+          <div class="absolute bottom-10 left-[85%] transform -translate-x-1/2 text-white text-sm">SW</div>
+          <div class="absolute top-1/2 left-0 transform -translate-y-1/2 text-white text-sm">W</div>
+          <div class="absolute top-10 left-[15%] transform translate-x-1/2 text-white text-sm">NW</div>
+        </div>
+
+        <!-- Heading pointer (static) -->
+        <div
+          class="absolute top-2 left-1/2 w-0 h-0 border-l-4 border-r-4 border-b-8 border-transparent border-b-red-500 transform -translate-x-1/2">
+        </div>
+      </div>
+    </div>
+
+    <canvas class="w-1/2 h-36" id="canvas">{{chart}}</canvas>
+  </div>
+
 </main>
 <router-outlet />

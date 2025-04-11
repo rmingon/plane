@@ -9,6 +9,10 @@ export interface Msg {
   x: number;
   y: number;
   rssi: number;
+  deg: number;
+  magY: number;
+  magX: number;
+  magZ: number;
 }
 
 @Injectable({
