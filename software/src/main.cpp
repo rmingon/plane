@@ -37,6 +37,7 @@ struct Data {
   int speed;
   byte cmd;
 };
+Data dataToSend;
 
 struct DataReceive {
   byte command;
@@ -46,12 +47,24 @@ struct DataReceive {
   double targetAltitude;
 };
 DataReceive dataReceive;
+
 double currentAltitude= 0;
+double currentRoll = 0;
 double throttleOutput;
+double rollOutput;
+double targetRoll = 0;
+
+double currentPitch = 0;
+double targetPitch = 0;
+double outputPitch = 0;
 
 #include <PID_v1.h>
 double Kp = 2.0, Ki = 0.5, Kd = 1.0;
+double rollKp = 1.5, rollKi = 0.3, rollKd = 0.8;
+double pitchKp = 1.5, pitchKi = 0.3, pitchKd = 0.8;
 PID altitudePID(&currentAltitude, &throttleOutput, &dataReceive.targetAltitude, Kp, Ki, Kd, DIRECT);
+PID rollPID(&currentRoll, &rollOutput, &targetRoll, rollKp, rollKi, rollKd, DIRECT);
+PID pitchPID(&currentPitch, &outputPitch, &targetPitch, pitchKp, pitchKi, pitchKd, DIRECT);
 
 struct HmcData {
   int16_t x;
@@ -62,8 +75,6 @@ struct HmcData {
 #include <ESP32Servo.h>
 Servo left;
 Servo right;
-Servo backLeft;
-Servo backRight;
 Servo esc;
 
 void loraSend(byte*, size_t);
@@ -71,16 +82,14 @@ void displayInfo();
 void autoPilot();
 void calibEsc();
 void testEsc();
-void roll(unsigned int);
-void yaw(unsigned int);
-
-byte recvBuffer[3];
+void roll(double);
+void yaw(int);
 
 void onReceive(int packetSize) {
-  if (packetSize == sizeof(DataReceive)) {
+  if (packetSize == sizeof(dataReceive)) {
     digitalWrite(LED, !digitalRead(LED));
 
-    for (int i = 0; i < sizeof(DataReceive); i++) {
+    for (int i = 0; i < sizeof(dataReceive); i++) {
       *((uint8_t*)&dataReceive + i) = LoRa.read();
     }
     const int cPosition = 0;
@@ -89,22 +98,13 @@ void onReceive(int packetSize) {
     bool cIsPressed = (dataReceive.command & (1 << cPosition)) != 0;
     bool zIsPressed = (dataReceive.command & (1 << zPosition)) != 0;
 
-    Serial.print("CMD :");
-    Serial.println(dataReceive.command, BIN);
-    Serial.print("roll :");
-    Serial.println(dataReceive.roll, DEC);
-    Serial.print("pich :");
-    Serial.println(dataReceive.pitch, DEC);
-    Serial.print("pich :");
-    Serial.println(dataReceive.throttle, DEC);
-    Serial.print("targat alt :");
-    Serial.println(dataReceive.targetAltitude);
-  
-    // print RSSI of packet
-    Serial.print("' with RSSI ");
-    Serial.println(LoRa.packetRssi());
+    // Serial.println("pitch: " + String(dataReceive.pitch));
+    // Serial.println("roll: " + String(dataReceive.roll));
+    targetRoll = dataReceive.roll;
   }
 }
+
+volatile bool sendEnd = false;
 
 void calibEsc() {
     Serial.println("Starting ESC calibration...");
@@ -145,6 +145,9 @@ void testEsc () {
     delay(3000);
 }
 
+int leftServoOffset = 0;
+int rightServoOffset = 0;
+
 void setup() {
   setCpuFrequencyMhz(240);
   pinMode(LED, OUTPUT);
@@ -157,41 +160,34 @@ void setup() {
 	ESP32PWM::allocateTimer(2);
 	ESP32PWM::allocateTimer(3);
 
-  // delay(3000);
-
   esc.setPeriodHertz(50);
   esc.attach(33, 1000, 2000);
 
-  // calibEsc();
-
-  // delay(1000);
-
-  // testEsc();
+  calibEsc();
 
   left.setPeriodHertz(50);
-  left.attach(25, 1000, 2000);
+  left.attach(26, 1000, 2000);
   right.setPeriodHertz(50);
-  right.attach(26, 1000, 2000);
-  backLeft.setPeriodHertz(50);
-  backLeft.attach(32, 1000, 2000);
-  backRight.setPeriodHertz(50);
-  backRight.attach(27, 1000, 2000);
-  
-  left.write(90);
-  right.write(90);
-  backLeft.write(90);
-  backRight.write(90);
+  right.attach(25, 1000, 2000);
 
-  yaw(0);
-  roll(0);
+  left.write(40);
+  
+  right.write(80);
   
   LoRaSPI.begin(14, 12, 13);
+  LoRa.setSPIFrequency(12000000);
   LoRa.setSPI(LoRaSPI);
   LoRa.setPins(15, 16, 17);
   if (!LoRa.begin(868E6)) {
       Serial.println("LoRa init failed. Check your connections.");
       while (true);
   }
+  LoRa.setSignalBandwidth(250E3);
+  LoRa.setCodingRate4(8);
+  LoRa.setSpreadingFactor(7);
+  LoRa.setTxPower(20);
+  LoRa.setSyncWord(0xF3);
+  LoRa.enableCrc();
 
   if (!bmp.begin()) {
       Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
@@ -208,39 +204,38 @@ void setup() {
   while(status!=0){ } // stop everything if could not connect to MPU6050
   mpu.calcOffsets(true,true); // gyro and accelero
 
-  LoRa.setSpreadingFactor(7);
-  LoRa.setSignalBandwidth(250E3);
-  LoRa.setTxPower(17);
-  LoRa.setSyncWord(0xF3);
-  LoRa.receive();
-  LoRa.enableCrc();
-
-  currentAltitude = bmp.readAltitude(1013.25);
+  currentAltitude = bmp.readAltitude(1016);
   dataReceive.targetAltitude = currentAltitude;
 
   altitudePID.SetMode(AUTOMATIC);
-  altitudePID.SetOutputLimits(1000, 2000);  // for ESC/motor PWM
+  rollPID.SetMode(AUTOMATIC);
+  rollPID.SetOutputLimits(-50, 50);
+  pitchPID.SetMode(AUTOMATIC);
+  pitchPID.SetOutputLimits(-50, 50);
 
   initHMC5883L();
-  delay(500);
   calib = calibrateHMC5883L();
   Serial.print("GO");
 }
 
-void roll(unsigned int roll) {
-  left.write(106 - roll);
-  right.write(85 - roll);
+void roll(double roll) {
+  left.write(40 - (roll));
+  right.write(80 - (roll));
 }
 
 void yaw(unsigned int yaw) {
-  backRight.write(100 - yaw);
+  // backRight.write(100 - yaw);
 }
 
 void loop() {
-
   onReceive(LoRa.parsePacket());
 
-  Data dataToSend;
+  altitudePID.Compute();
+  rollPID.Compute();
+  pitchPID.Compute();
+
+  roll(rollOutput);
+  esc.write(throttleOutput);
 
   while (gpsSerial.available() > 0)
     if (gps.encode(gpsSerial.read())) {
@@ -249,17 +244,19 @@ void loop() {
       dataToSend.kmph = gps.speed.isValid() ? gps.speed.kmph() : 0.0;
       dataToSend.deg = gps.course.isValid() ? gps.course.deg() : 0.0;
     }
-  if(millis() - timer > 250) {
-    mpu.update();
-    dataToSend.x = mpu.getAngleX();
-    dataToSend.y = mpu.getAngleY();
 
-    if (bmp.takeForcedMeasurement()) {
-      dataToSend.alt = bmp.readAltitude(1016);
-    }
+  mpu.update();
+  dataToSend.x = mpu.getAngleX();
+  dataToSend.y = mpu.getAngleY();
+  currentRoll = mpu.getAngleY();
+
+  if (bmp.takeForcedMeasurement()) {
+    dataToSend.alt = bmp.readAltitude(1016);
+    currentAltitude = dataToSend.alt;
+  }
     
-    readCalibratedHMC5883L(calib, dataToSend.magX, dataToSend.magY, dataToSend.magZ);
-
+  readCalibratedHMC5883L(calib, dataToSend.magX, dataToSend.magY, dataToSend.magZ);
+  if(millis() - timer > 500) {
     dataToSend.speed = oESC;
 
     loraSend((uint8_t*)&dataToSend, sizeof(dataToSend));
